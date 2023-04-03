@@ -6,6 +6,7 @@ import com.milica.clients.notification.NotificationClient;
 import com.milica.clients.notification.NotificationRequest;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.milica.amqp.RabbitMQMessageProducer;
 
 @Service
 @AllArgsConstructor
@@ -14,6 +15,7 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final NotificationClient notificationClient;
     private final FraudClient fraudClient;
+    private final RabbitMQMessageProducer rabbitMQMessageProducer;
 
 
     public void registerCustomer(CustomerRegistrationRequest request){
@@ -34,14 +36,17 @@ public class CustomerService {
         if(fraudCheckResponse.isFraudster()){
             throw  new IllegalStateException("fraudster");
         }
-        // todo: make it async. i.e add to queue
-        notificationClient.sendNotification(
-                new NotificationRequest(
-                        customer.getId(),
-                        customer.getEmail(),
-                        String.format("Hi %s, welcome...",
-                                customer.getFirstName())
-                )
+
+        NotificationRequest notificationRequest = new NotificationRequest(
+                customer.getId(),
+                customer.getEmail(),
+                String.format("Hi %s, welcome",
+                        customer.getFirstName())
+        );
+        rabbitMQMessageProducer.publish(
+                notificationRequest,
+                "internal.exchange",
+                "internal.notification.routing-key"
         );
     }
 }
